@@ -48,6 +48,18 @@
             background-size: contain;
             z-index: 1000;
         }
+        #debug-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 1001;
+        }
     </style>
 </head>
 <body>
@@ -56,6 +68,16 @@
     </div>
 
     <div id="direction-arrow" style="display: none;"></div>
+    <div id="debug-info">Loading...</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./build/three.module.js",
+                "three/addons/": "./examples/jsm/"
+            }
+        }
+    </script>
 
     <script type="module">
         import * as THREE from './build/three.module.js';
@@ -64,6 +86,12 @@
 
         let camera, scene, renderer, controls;
         let currentPanorama;
+        let debugInfo = document.getElementById('debug-info');
+
+        function updateDebug(message) {
+            console.log(message);
+            debugInfo.innerHTML += '<br>' + message;
+        }
 
         const panoramas = [
             {
@@ -85,6 +113,8 @@
         };
 
         function init() {
+            updateDebug('Initializing...');
+            
             scene = new THREE.Scene();
             
             // Renderer
@@ -103,6 +133,8 @@
             controls.enableZoom = true;
             controls.zoomSpeed = 1.2;
             
+            updateDebug('Three.js initialized');
+            
             // Load initial panorama
             loadPanorama(currentPanoramaIndex);
             
@@ -115,6 +147,8 @@
         }
 
         function loadPanorama(index) {
+            updateDebug('Loading panorama: ' + panoramas[index].url);
+            
             // Remove old arrows
             const directionArrows = document.querySelectorAll('.direction-arrow');
             directionArrows.forEach(arrow => arrow.remove());
@@ -131,64 +165,81 @@
                 scene.remove(currentPanorama);
             }
           
-            const textureLoader = new THREE.TextureLoader();
-            textureLoader.load(panoramas[index].url, function (texture) {
-                texture.mapping = THREE.EquirectangularReflectionMapping;
-
-                // Create sphere geometry
-                const geometry = new THREE.SphereGeometry(500, 60, 40);
-                geometry.scale(-1, 1, 1);
-
-                // Create material
-                const material = new THREE.MeshBasicMaterial({ map: texture });
-
-                // Create mesh and add to scene
-                currentPanorama = new THREE.Mesh(geometry, material);
-                scene.add(currentPanorama);
-
-                // Create GUI
-                createGUI(material, camera, controls, {
-                    panoramas: panoramas,
-                    panoramaDescriptions: panoramas.map(item => item.description),
-                    envMap: panoramas[index].description,
-                    exposure: params.exposure
-                });
-            }, undefined, function(error) {
-                console.error('Error loading texture:', error);
-                console.log('Trying alternative paths...');
+            // Try multiple paths for better compatibility
+            const imagePaths = [
+                './examples/textures/nuverxai.JPG',  // Original
+                './examples/textures/nuverxai.jpg',  // Lowercase
+                'examples/textures/nuverxai.JPG',    // Without leading ./
+                'examples/textures/nuverxai.jpg'     // Without leading ./ and lowercase
+            ];
+            
+            let currentPathIndex = 0;
+            
+            function tryLoadTexture() {
+                if (currentPathIndex >= imagePaths.length) {
+                    updateDebug('All image paths failed, creating fallback sphere');
+                    createFallbackSphere();
+                    return;
+                }
                 
-                // Try different case variations
-                const altPaths = [
-                    './examples/textures/nuverxai.jpg',
-                    './examples/textures/nuverxai.png',
-                    './examples/textures/nuverxai.jpeg'
-                ];
+                const currentPath = imagePaths[currentPathIndex];
+                updateDebug('Trying path: ' + currentPath);
                 
-                let pathIndex = 0;
-                function tryNextPath() {
-                    if (pathIndex < altPaths.length) {
-                        textureLoader.load(altPaths[pathIndex], function (texture) {
-                            texture.mapping = THREE.EquirectangularReflectionMapping;
-                            const geometry = new THREE.SphereGeometry(500, 60, 40);
-                            geometry.scale(-1, 1, 1);
-                            const material = new THREE.MeshBasicMaterial({ map: texture });
-                            currentPanorama = new THREE.Mesh(geometry, material);
-                            scene.add(currentPanorama);
-                        }, undefined, function() {
-                            pathIndex++;
-                            tryNextPath();
-                        });
-                    } else {
-                        console.error('All texture paths failed to load');
-                        // Create a simple colored sphere as fallback
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(
+                    currentPath, 
+                    function (texture) {
+                        updateDebug('Successfully loaded: ' + currentPath);
+                        texture.mapping = THREE.EquirectangularReflectionMapping;
+
+                        // Create sphere geometry
                         const geometry = new THREE.SphereGeometry(500, 60, 40);
                         geometry.scale(-1, 1, 1);
-                        const material = new THREE.MeshBasicMaterial({ color: 0x404040 });
+
+                        // Create material
+                        const material = new THREE.MeshBasicMaterial({ map: texture });
+
+                        // Create mesh and add to scene
                         currentPanorama = new THREE.Mesh(geometry, material);
                         scene.add(currentPanorama);
+
+                        updateDebug('Panorama loaded successfully!');
+
+                        // Create GUI
+                        createGUI(material, camera, controls, {
+                            panoramas: panoramas,
+                            panoramaDescriptions: panoramas.map(item => item.description),
+                            envMap: panoramas[index].description,
+                            exposure: params.exposure
+                        });
+                    }, 
+                    function(progress) {
+                        updateDebug('Loading progress: ' + Math.round((progress.loaded / progress.total) * 100) + '%');
+                    },
+                    function(error) {
+                        updateDebug('Failed to load: ' + currentPath + ' - ' + error.message);
+                        currentPathIndex++;
+                        tryLoadTexture();
                     }
-                }
-                tryNextPath();
+                );
+            }
+            
+            tryLoadTexture();
+        }
+        
+        function createFallbackSphere() {
+            updateDebug('Creating gray fallback sphere');
+            const geometry = new THREE.SphereGeometry(500, 60, 40);
+            geometry.scale(-1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x808080 });
+            currentPanorama = new THREE.Mesh(geometry, material);
+            scene.add(currentPanorama);
+            
+            createGUI(material, camera, controls, {
+                panoramas: panoramas,
+                panoramaDescriptions: panoramas.map(item => item.description),
+                envMap: 'Fallback',
+                exposure: params.exposure
             });
         }
 
@@ -248,6 +299,7 @@
         }
 
         // Initialize and start
+        updateDebug('Starting application...');
         init();
         animate();
     </script>
