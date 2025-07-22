@@ -69,7 +69,37 @@
         }
     </script>
 
-    <script src="./examples/main.js" type="module"></script>
+    <script type="module">
+        // Fallback for browsers that don't support import maps
+        if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.textContent = `
+                import('./build/three.module.js').then(THREE => {
+                    window.THREE = THREE;
+                    import('./examples/jsm/libs/lil-gui.module.min.js').then(GUI => {
+                        window.GUI = GUI;
+                        import('./examples/jsm/controls/OrbitControls.js').then(OrbitControls => {
+                            window.OrbitControls = OrbitControls;
+                            import('./examples/main.js');
+                        });
+                    });
+                }).catch(err => {
+                    console.error('Failed to load Three.js modules:', err);
+                    // Try alternative loading method
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = './examples/main-fallback.js';
+                    fallbackScript.type = 'module';
+                    document.head.appendChild(fallbackScript);
+                });
+            `;
+            document.head.appendChild(script);
+        } else {
+            import('./examples/main.js').catch(err => {
+                console.error('Failed to load main.js:', err);
+            });
+        }
+    </script>
 
 </body>
 </html>
