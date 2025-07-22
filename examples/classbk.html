@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - 360 Image with Direction Arrow</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link type="text/css" rel="stylesheet" href="main.css">
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+       .arrow-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            color: white;
+            font-size: 24px;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        #left-arrow {
+            left: 10px;
+        }
+        #right-arrow {
+            right: 10px;
+        }
+        #direction-arrow {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 50px;
+            background: url('textures/arrow.png') no-repeat center center;
+            background-size: contain;
+            z-index: 1000;
+        }
+        #target-arrow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: url('textures/arrow.png') no-repeat center center;
+            background-size: contain;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - 360 Image with Direction Arrow
+    </div>
+    <!-- <button id="left-arrow" class="arrow-btn">&#9664;</button>
+    <button id="right-arrow" class="arrow-btn">&#9654;</button> -->
+    <div id="info"></div>
+
+    <div id="direction-arrow" style="display: none;"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../build/three.module.js",
+                "three/addons/": "./jsm/"
+            }
+        }
+    </script>
+
+    <script src="./main.js" type="module"></script>
+
+</body>
+</html>
