@@ -54,52 +54,203 @@
     <div id="info">
         <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - 360 Image with Direction Arrow
     </div>
-    <!-- <button id="left-arrow" class="arrow-btn">&#9664;</button>
-    <button id="right-arrow" class="arrow-btn">&#9654;</button> -->
-    <div id="info"></div>
 
     <div id="direction-arrow" style="display: none;"></div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "./build/three.module.js",
-                "three/addons/": "./examples/jsm/"
-            }
-        }
-    </script>
-
     <script type="module">
-        // Fallback for browsers that don't support import maps
-        if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
-            const script = document.createElement('script');
-            script.type = 'module';
-            script.textContent = `
-                import('./build/three.module.js').then(THREE => {
-                    window.THREE = THREE;
-                    import('./examples/jsm/libs/lil-gui.module.min.js').then(GUI => {
-                        window.GUI = GUI;
-                        import('./examples/jsm/controls/OrbitControls.js').then(OrbitControls => {
-                            window.OrbitControls = OrbitControls;
-                            import('./examples/main.js');
-                        });
-                    });
-                }).catch(err => {
-                    console.error('Failed to load Three.js modules:', err);
-                    // Try alternative loading method
-                    const fallbackScript = document.createElement('script');
-                    fallbackScript.src = './examples/main-fallback.js';
-                    fallbackScript.type = 'module';
-                    document.head.appendChild(fallbackScript);
+        import * as THREE from './build/three.module.js';
+        import { GUI } from './examples/jsm/libs/lil-gui.module.min.js';
+        import { OrbitControls } from './examples/jsm/controls/OrbitControls.js';
+
+        let camera, scene, renderer, controls;
+        let currentPanorama;
+
+        const panoramas = [
+            {
+                url: './examples/textures/nuverxai.JPG',
+                description: 'Nuverxai',
+                coordinates: { lat: 10.123456, lng: 105.654321 },
+                connectedPanoramas: []
+            },
+        ];
+
+        let currentPanoramaIndex = 0;
+
+        const params = {
+            envMap: "HDR JPG",
+            roughness: 0.0,
+            metalness: 1.0,
+            exposure: 0.5,
+            debug: false,
+        };
+
+        function init() {
+            scene = new THREE.Scene();
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.set(0, 0, 0.1);
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableZoom = true;
+            controls.zoomSpeed = 1.2;
+            
+            // Load initial panorama
+            loadPanorama(currentPanoramaIndex);
+            
+            // Event listeners
+            const directionArrow = document.getElementById('direction-arrow');
+            if (directionArrow) {
+                directionArrow.addEventListener('click', () => switchPanorama(0));
+            }
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function loadPanorama(index) {
+            // Remove old arrows
+            const directionArrows = document.querySelectorAll('.direction-arrow');
+            directionArrows.forEach(arrow => arrow.remove());
+          
+            // Display panorama info
+            const { description, coordinates, connectedPanoramas } = panoramas[index];
+            const infoElement = document.getElementById('info');
+            if (infoElement) {
+                infoElement.innerHTML = `<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - 360 Image with Direction Arrow - ${description}`;
+            }
+          
+            // Load panorama
+            if (currentPanorama) {
+                scene.remove(currentPanorama);
+            }
+          
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(panoramas[index].url, function (texture) {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+
+                // Create sphere geometry
+                const geometry = new THREE.SphereGeometry(500, 60, 40);
+                geometry.scale(-1, 1, 1);
+
+                // Create material
+                const material = new THREE.MeshBasicMaterial({ map: texture });
+
+                // Create mesh and add to scene
+                currentPanorama = new THREE.Mesh(geometry, material);
+                scene.add(currentPanorama);
+
+                // Create GUI
+                createGUI(material, camera, controls, {
+                    panoramas: panoramas,
+                    panoramaDescriptions: panoramas.map(item => item.description),
+                    envMap: panoramas[index].description,
+                    exposure: params.exposure
                 });
-            `;
-            document.head.appendChild(script);
-        } else {
-            import('./examples/main.js').catch(err => {
-                console.error('Failed to load main.js:', err);
+            }, undefined, function(error) {
+                console.error('Error loading texture:', error);
+                console.log('Trying alternative paths...');
+                
+                // Try different case variations
+                const altPaths = [
+                    './examples/textures/nuverxai.jpg',
+                    './examples/textures/nuverxai.png',
+                    './examples/textures/nuverxai.jpeg'
+                ];
+                
+                let pathIndex = 0;
+                function tryNextPath() {
+                    if (pathIndex < altPaths.length) {
+                        textureLoader.load(altPaths[pathIndex], function (texture) {
+                            texture.mapping = THREE.EquirectangularReflectionMapping;
+                            const geometry = new THREE.SphereGeometry(500, 60, 40);
+                            geometry.scale(-1, 1, 1);
+                            const material = new THREE.MeshBasicMaterial({ map: texture });
+                            currentPanorama = new THREE.Mesh(geometry, material);
+                            scene.add(currentPanorama);
+                        }, undefined, function() {
+                            pathIndex++;
+                            tryNextPath();
+                        });
+                    } else {
+                        console.error('All texture paths failed to load');
+                        // Create a simple colored sphere as fallback
+                        const geometry = new THREE.SphereGeometry(500, 60, 40);
+                        geometry.scale(-1, 1, 1);
+                        const material = new THREE.MeshBasicMaterial({ color: 0x404040 });
+                        currentPanorama = new THREE.Mesh(geometry, material);
+                        scene.add(currentPanorama);
+                    }
+                }
+                tryNextPath();
             });
         }
+
+        function createGUI(material, camera, controls, params) {
+            const gui = new GUI();
+          
+            // Background folder
+            const backgroundFolder = gui.addFolder('Background');
+            backgroundFolder.add(material, 'opacity', 0, 1).name('Opacity');
+            backgroundFolder.open();
+          
+            // Camera folder
+            const cameraFolder = gui.addFolder('Camera');
+            cameraFolder.add(camera, 'fov', 10, 120).name('Field of View').onChange(() => {
+                camera.updateProjectionMatrix();
+            });
+            cameraFolder.add(controls, 'minDistance', 50, 1000).name('Min Distance');
+            cameraFolder.add(controls, 'maxDistance', 50, 1000).name('Max Distance');
+            cameraFolder.open();
+          
+            // Panorama folder
+            const panoramaFolder = gui.addFolder('Panorama');
+            panoramaFolder.add(params, 'exposure', 0, 2, 0.01).onChange(function (value) {
+                renderer.toneMappingExposure = value;
+            });
+            panoramaFolder.open();
+          
+            return gui;
+        }
+
+        function switchPanorama(index) {
+            currentPanoramaIndex = index;
+            loadPanorama(currentPanoramaIndex);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateDirectionArrow();
+            renderer.render(scene, camera);
+        }
+
+        function updateDirectionArrow() {
+            const directionArrow = document.getElementById('direction-arrow');
+            if (directionArrow) {
+                const vector = new THREE.Vector3(0, 0, -1);
+                vector.applyQuaternion(camera.quaternion);
+                const angle = Math.atan2(vector.x, vector.z);
+                directionArrow.style.transform = `translateX(-50%) rotate(${angle}rad)`;
+            }
+        }
+
+        // Initialize and start
+        init();
+        animate();
     </script>
 
 </body>
-</html>
+</html> 
